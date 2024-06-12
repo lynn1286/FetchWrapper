@@ -16,6 +16,7 @@ export interface RequestOptions extends RequestInit {
   _retryOnFail?: boolean
   _apiUrl?: string
   _withHeader?: boolean
+  _isReturnNativeResponse?: boolean
 }
 
 class FetchWrapper {
@@ -26,7 +27,7 @@ class FetchWrapper {
   private retryOnFail: boolean
   public interceptors = {
     request: new InterceptorManager<[string, RequestOptions]>(),
-    response: new InterceptorManager<Response>()
+    response: new InterceptorManager<Response, RequestOptions>()
   }
 
   constructor(config: Config) {
@@ -104,7 +105,7 @@ class FetchWrapper {
         response = await this.retryFetch(resolvedResource, resolvedOptions)
       }
 
-      return await this.interceptors.response.runHandlers(response)
+      return await this.interceptors.response.runHandlers(response, options)
     } catch (error) {
       console.error('Request failed:', error)
       throw error
