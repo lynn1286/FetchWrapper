@@ -131,33 +131,33 @@ class FetchWrapper {
   }
 
   // 封装 GET 方法
-  async get(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
-    return this.request(resource, { ...options, method: 'GET' })
+  async get<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
+    return this.request(resource, { ...options, method: 'GET' }) as T
   }
 
   // 封装 POST 方法
-  async post(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
+  async post<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
     return this.request(resource, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       method: 'POST',
       body: options.body
-    })
+    }) as T
   }
 
   // 封装 PUT 方法
-  async put(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
+  async put<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
     return this.request(resource, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       method: 'PUT',
       body: options.body
-    })
+    }) as T
   }
 
   // 封装 DELETE 方法
-  async delete(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
-    return this.request(resource, { ...options, method: 'DELETE' })
+  async delete<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
+    return this.request(resource, { ...options, method: 'DELETE' }) as T
   }
 }
 
