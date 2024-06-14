@@ -19,6 +19,16 @@ export interface RequestOptions extends RequestInit {
   _isReturnNativeResponse?: boolean
 }
 
+interface RequestContext {
+  url: string
+  options: RequestOptions
+}
+
+interface ResponseContext {
+  response: Response
+  options: RequestOptions
+}
+
 class FetchWrapper {
   private timeout: number
   private retries: number
@@ -26,13 +36,13 @@ class FetchWrapper {
   private retryInterval: number
   private retryOnFail: boolean
   public interceptors = {
-    request: new InterceptorManager<[string, RequestOptions]>(),
-    response: new InterceptorManager<Response, RequestOptions>()
+    request: new InterceptorManager<RequestContext>(),
+    response: new InterceptorManager<ResponseContext>()
   }
 
   constructor(config: Config) {
     this.timeout = config.timeout || 5000 // 默认超时时间为5000毫秒
-    this.retries = config.retries || 3 // 默认重试次数为0
+    this.retries = config.retries || 0 // 默认重试次数为0
     this.apiUrl = config.apiUrl || '' // 如果没有配置baseURL，默认为空
     this.retryInterval = config.retryInterval || 1000 // 如果未设置，默认为1000毫秒
     this.retryOnFail = config.retryOnFail !== undefined ? config.retryOnFail : false // 初始化错误重试开关，默认值为 false
@@ -59,7 +69,6 @@ class FetchWrapper {
 
   private async retryFetch(resource: string, options: RequestOptions): Promise<Response> {
     const retries = options._retries !== undefined ? options._retries : this.retries
-
     let interval =
       options._retryInterval !== undefined ? options._retryInterval : this.retryInterval
 
@@ -92,53 +101,62 @@ class FetchWrapper {
   async request(resource: string, options: RequestOptions = {}): Promise<Response> {
     const retryOnFail = options._retryOnFail !== undefined ? options._retryOnFail : this.retryOnFail
 
+    const requestContext: RequestContext = { url: resource, options }
+
     try {
-      const [resolvedResource, resolvedOptions] = await this.interceptors.request.runHandlers([
-        resource,
-        options
-      ])
+      const resolvedRequestContext = await this.interceptors.request.runHandlers(requestContext)
 
       let response: Response
       if (!retryOnFail) {
-        response = await this.fetchWithTimeout(resolvedResource, resolvedOptions)
+        response = await this.fetchWithTimeout(
+          resolvedRequestContext.url,
+          resolvedRequestContext.options
+        )
       } else {
-        response = await this.retryFetch(resolvedResource, resolvedOptions)
+        response = await this.retryFetch(resolvedRequestContext.url, resolvedRequestContext.options)
       }
 
-      return await this.interceptors.response.runHandlers(response, options)
+      const responseContext: ResponseContext = {
+        response,
+        options: resolvedRequestContext.options
+      }
+      const resolvedResponseContext = await this.interceptors.response.runHandlers(responseContext)
+
+      return resolvedResponseContext.response
     } catch (error) {
-      console.error('Request failed:', error)
+      const errorContext = { error, request: requestContext }
+      console.error('Request failed:', errorContext)
       throw error
     }
   }
 
   // 封装 GET 方法
-  async get(resource: string, options: RequestOptions = {}) {
+  async get(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
     return this.request(resource, { ...options, method: 'GET' })
   }
 
   // 封装 POST 方法
-  async post(resource: string, options: RequestOptions = {}) {
+  async post(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
     return this.request(resource, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       method: 'POST',
-      body: JSON.stringify(options.body)
+      body: options.body
     })
   }
 
   // 封装 PUT 方法
-  async put(resource: string, options: RequestOptions = {}) {
+  async put(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
     return this.request(resource, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       method: 'PUT',
-      body: JSON.stringify(options.body)
+      body: options.body
     })
   }
 
   // 封装 DELETE 方法
-  async delete(resource: string, options: RequestOptions = {}) {
+  async delete(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
     return this.request(resource, { ...options, method: 'DELETE' })
   }
 }

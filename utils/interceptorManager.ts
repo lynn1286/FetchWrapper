@@ -1,27 +1,27 @@
-interface Interceptor<T, O = any> {
-  fulfilled?: (value: T, options?: O) => T | Promise<T>
-  rejected?: (error: any, options?: O) => any
+interface Interceptor<T, E = any> {
+  fulfilled?: (value: T) => T | Promise<T>
+  rejected?: (params: { error: E; options: T }) => any
 }
 
-class InterceptorManager<T, O = any> {
-  private handlers: Array<Interceptor<T, O>> = []
+class InterceptorManager<T, E = any> {
+  private handlers: Array<Interceptor<T, E>> = []
 
-  use(fulfilled?: Interceptor<T, O>['fulfilled'], rejected?: Interceptor<T, O>['rejected']): void {
+  use(fulfilled?: Interceptor<T, E>['fulfilled'], rejected?: Interceptor<T, E>['rejected']): void {
     this.handlers.push({
       fulfilled,
       rejected
     })
   }
 
-  async runHandlers(value: T, options?: O): Promise<T> {
+  async runHandlers(value: T): Promise<T> {
     for (const { fulfilled, rejected } of this.handlers) {
       try {
         if (fulfilled) {
-          value = await fulfilled(value, options)
+          value = await fulfilled(value)
         }
       } catch (error) {
         if (rejected) {
-          await rejected(error, options)
+          await rejected({ error: error as E, options: value })
         }
         throw error
       }
