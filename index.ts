@@ -1,12 +1,13 @@
 import InterceptorManager from './utils/interceptorManager'
 
-type Config = {
+export type Config = {
   timeout?: number // 请求超时时间
   retries?: number // 请求超时重试次数
   retryInterval?: number // 添加重试间隔时间参数
   retryOnFail?: boolean // 是否开启错误重试
   apiUrl?: string // 基础URL
   withHeader?: boolean // 是否携带自定义header
+  autoParseJSON?: boolean // 是否自动解析JSON响应
 }
 
 export interface RequestOptions extends RequestInit {
@@ -17,6 +18,7 @@ export interface RequestOptions extends RequestInit {
   _apiUrl?: string
   _withHeader?: boolean
   _isReturnNativeResponse?: boolean
+  _autoParseJSON?: boolean
 }
 
 interface RequestContext {
@@ -35,6 +37,7 @@ class FetchWrapper {
   private apiUrl: string
   private retryInterval: number
   private retryOnFail: boolean
+  private autoParseJSON: boolean
   public interceptors = {
     request: new InterceptorManager<RequestContext>(),
     response: new InterceptorManager<ResponseContext>()
@@ -46,6 +49,7 @@ class FetchWrapper {
     this.apiUrl = config.apiUrl || '' // 如果没有配置baseURL，默认为空
     this.retryInterval = config.retryInterval || 1000 // 如果未设置，默认为1000毫秒
     this.retryOnFail = config.retryOnFail !== undefined ? config.retryOnFail : false // 初始化错误重试开关，默认值为 false
+    this.autoParseJSON = config.autoParseJSON !== undefined ? config.autoParseJSON : false // 初始化自动解析JSON开关，默认值为 false
   }
 
   private async fetchWithTimeout(resource: string, options: RequestOptions) {
@@ -98,8 +102,10 @@ class FetchWrapper {
     throw new Error('Maximum retries exceeded')
   }
 
-  async request(resource: string, options: RequestOptions = {}): Promise<Response> {
+  async request(resource: string, options: RequestOptions = {}): Promise<any> {
     const retryOnFail = options._retryOnFail !== undefined ? options._retryOnFail : this.retryOnFail
+    const autoParseJSON =
+      options._autoParseJSON !== undefined ? options._autoParseJSON : this.autoParseJSON
 
     const requestContext: RequestContext = { url: resource, options }
 
@@ -121,6 +127,11 @@ class FetchWrapper {
         options: resolvedRequestContext.options
       }
       const resolvedResponseContext = await this.interceptors.response.runHandlers(responseContext)
+
+      // 如果启用了自动解析JSON，则解析响应体
+      if (autoParseJSON) {
+        return await resolvedResponseContext.response.json()
+      }
 
       return resolvedResponseContext.response
     } catch (error) {

@@ -10,6 +10,7 @@
 2. 重试机制：在请求失败时，能够进行重试，并支持配置重试次数和重试间隔。
 3. 拦截器：支持请求和响应的拦截器，便于在请求前后进行一些额外的处理。
 4. 统一的基础 URL：支持配置基础 URL，简化请求路径。
+5. 自动解析 JSON：支持自动解析 JSON 响应，简化数据获取流程。
 
 ## 实现步骤
 
@@ -24,7 +25,8 @@ type Config = {
   retryInterval?: number, // 添加重试间隔时间参数
   retryOnFail?: boolean, // 是否开启错误重试
   apiUrl?: string, // 基础URL
-  withHeader?: boolean // 是否携带自定义header
+  withHeader?: boolean, // 是否携带自定义header
+  autoParseJSON?: boolean // 是否自动解析JSON响应
 }
 ```
 
@@ -41,6 +43,7 @@ interface RequestOptions extends RequestInit {
   _apiUrl?: string;
   _withHeader?: boolean;
   _isReturnNativeResponse?: boolean;
+  _autoParseJSON?: boolean;
 }
 
 interface RequestContext {
@@ -65,6 +68,7 @@ class FetchWrapper {
   private apiUrl: string;
   private retryInterval: number;
   private retryOnFail: boolean;
+  private autoParseJSON: boolean;
   public interceptors = {
     request: new InterceptorManager<RequestContext>(),
     response: new InterceptorManager<ResponseContext>()
@@ -76,6 +80,7 @@ class FetchWrapper {
     this.apiUrl = config.apiUrl || ''; // 如果没有配置apiUrl，默认为空
     this.retryInterval = config.retryInterval || 1000; // 如果未设置，默认为1000毫秒
     this.retryOnFail = config.retryOnFail !== undefined ? config.retryOnFail : false; // 初始化错误重试开关，默认值为 false
+    this.autoParseJSON = config.autoParseJSON !== undefined ? config.autoParseJSON : false; // 初始化自动解析JSON开关，默认值为 false
   }
 }
 ```
@@ -177,11 +182,12 @@ class InterceptorManager<T, E = any> {
 
 ### 7. 实现 request 方法
 
-我们通过 request 方法来统一处理请求，并根据配置决定是否进行重试：
+我们通过 request 方法来统一处理请求，并根据配置决定是否进行重试。当启用 `autoParseJSON` 时，会自动解析 JSON 响应：
 
 ```js
-  async request(resource: string, options: RequestOptions = {}): Promise<Response> {
+  async request(resource: string, options: RequestOptions = {}): Promise<any> {
     const retryOnFail = options._retryOnFail !== undefined ? options._retryOnFail : this.retryOnFail;
+    const autoParseJSON = options._autoParseJSON !== undefined ? options._autoParseJSON : this.autoParseJSON;
 
     const requestContext: RequestContext = { url: resource, options };
 
@@ -205,6 +211,11 @@ class InterceptorManager<T, E = any> {
         options: resolvedRequestContext.options
       };
       const resolvedResponseContext = await this.interceptors.response.runHandlers(responseContext);
+
+      // 如果启用了自动解析JSON，则解析响应体
+      if (autoParseJSON) {
+        return await resolvedResponseContext.response.json();
+      }
 
       return resolvedResponseContext.response;
     } catch (error) {
@@ -263,7 +274,8 @@ const config = {
   retries: 5, // 重试次数
   retryInterval: 2000, // 重试间隔
   retryOnFail: true, // 开启错误重试
-  apiUrl: 'https://api.example.com' // 基础URL
+  apiUrl: 'https://api.example.com', // 基础URL
+  autoParseJSON: true // 自动解析JSON响应
 }
 
 const fetchWrapper = new FetchWrapper(config)
@@ -289,17 +301,24 @@ fetchWrapper.interceptors.response.use(
   }
 )
 
-// 发送GET请求
+// 发送GET请求（启用了 autoParseJSON，直接返回解析后的数据）
 fetchWrapper
   .get('/endpoint')
-  .then(response => response.json())
-  .then(data => console.log(data))
+  .then(data => console.log(data)) // 直接获得解析后的数据，无需 .json()
   .catch(error => console.error('Error:', error))
 
 // 发送POST请求
 fetchWrapper
   .post('/endpoint', {
     body: JSON.stringify({ key: 'value' })
+  })
+  .then(data => console.log(data)) // 直接获得解析后的数据
+  .catch(error => console.error('Error:', error))
+
+// 如果某个请求需要获取原始 Response 对象，可以单独关闭自动解析
+fetchWrapper
+  .get('/endpoint', {
+    _autoParseJSON: false // 单独关闭自动解析
   })
   .then(response => response.json())
   .then(data => console.log(data))
@@ -310,16 +329,27 @@ fetchWrapper
   .put('/endpoint', {
     body: JSON.stringify({ key: 'updated value' })
   })
-  .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error))
 
 // 发送DELETE请求
 fetchWrapper
   .delete('/endpoint')
-  .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error))
 ```
+
+### autoParseJSON 功能说明
+
+`autoParseJSON` 配置项可以让您自动解析 JSON 响应，无需手动调用 `.then(response => response.json())`：
+
+- **全局配置**：在创建 FetchWrapper 实例时设置 `autoParseJSON: true`，所有请求都会自动解析 JSON
+- **单独控制**：可以通过请求选项中的 `_autoParseJSON` 来覆盖全局配置
+- **默认值**：默认为 `false`，保持向后兼容
+
+**使用场景：**
+
+- 当您的 API 主要返回 JSON 数据时，启用全局配置可以简化代码
+- 对于需要原始 Response 对象的特殊情况（如处理 Blob、文件下载等），可以单独关闭此功能
 
 通过以上步骤，我们完成了对 fetch 的封装，实现了超时、重试、拦截器等高级特性。希望这篇文章能够帮助你更好地理解和使用 fetch。
