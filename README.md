@@ -301,10 +301,10 @@ fetchWrapper.interceptors.response.use(
   }
 )
 
-// 发送GET请求（启用了 autoParseJSON，直接返回解析后的数据）
+// 发送GET请求
 fetchWrapper
   .get('/endpoint')
-  .then(data => console.log(data)) // 直接获得解析后的数据，无需 .json()
+  .then(data => console.log(data))
   .catch(error => console.error('Error:', error))
 
 // 发送POST请求
@@ -312,7 +312,7 @@ fetchWrapper
   .post('/endpoint', {
     body: JSON.stringify({ key: 'value' })
   })
-  .then(data => console.log(data)) // 直接获得解析后的数据
+  .then(data => console.log(data))
   .catch(error => console.error('Error:', error))
 
 // 如果某个请求需要获取原始 Response 对象，可以单独关闭自动解析
@@ -338,18 +338,5 @@ fetchWrapper
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error))
 ```
-
-### autoParseJSON 功能说明
-
-`autoParseJSON` 配置项可以让您自动解析 JSON 响应，无需手动调用 `.then(response => response.json())`：
-
-- **全局配置**：在创建 FetchWrapper 实例时设置 `autoParseJSON: true`，所有请求都会自动解析 JSON
-- **单独控制**：可以通过请求选项中的 `_autoParseJSON` 来覆盖全局配置
-- **默认值**：默认为 `false`，保持向后兼容
-
-**使用场景：**
-
-- 当您的 API 主要返回 JSON 数据时，启用全局配置可以简化代码
-- 对于需要原始 Response 对象的特殊情况（如处理 Blob、文件下载等），可以单独关闭此功能
 
 通过以上步骤，我们完成了对 fetch 的封装，实现了超时、重试、拦截器等高级特性。希望这篇文章能够帮助你更好地理解和使用 fetch。

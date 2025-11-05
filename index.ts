@@ -102,7 +102,7 @@ class FetchWrapper {
     throw new Error('Maximum retries exceeded')
   }
 
-  async request(resource: string, options: RequestOptions = {}): Promise<any> {
+  async request<T = Response>(resource: string, options: RequestOptions = {}): Promise<T> {
     const retryOnFail = options._retryOnFail !== undefined ? options._retryOnFail : this.retryOnFail
     const autoParseJSON =
       options._autoParseJSON !== undefined ? options._autoParseJSON : this.autoParseJSON
@@ -130,10 +130,10 @@ class FetchWrapper {
 
       // 如果启用了自动解析JSON，则解析响应体
       if (autoParseJSON) {
-        return await resolvedResponseContext.response.json()
+        return (await resolvedResponseContext.response.json()) as T
       }
 
-      return resolvedResponseContext.response
+      return resolvedResponseContext.response as T
     } catch (error) {
       const errorContext = { error, request: requestContext }
       console.error('Request failed:', errorContext)
@@ -142,33 +142,45 @@ class FetchWrapper {
   }
 
   // 封装 GET 方法
-  async get<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
-    return this.request(resource, { ...options, method: 'GET' }) as T
+  async get<T = Response>(
+    resource: string,
+    options: Omit<RequestOptions, 'method'> = {}
+  ): Promise<T> {
+    return this.request<T>(resource, { ...options, method: 'GET' })
   }
 
   // 封装 POST 方法
-  async post<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
-    return this.request(resource, {
+  async post<T = Response>(
+    resource: string,
+    options: Omit<RequestOptions, 'method'> = {}
+  ): Promise<T> {
+    return this.request<T>(resource, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       method: 'POST',
       body: options.body
-    }) as T
+    })
   }
 
   // 封装 PUT 方法
-  async put<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
-    return this.request(resource, {
+  async put<T = Response>(
+    resource: string,
+    options: Omit<RequestOptions, 'method'> = {}
+  ): Promise<T> {
+    return this.request<T>(resource, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       method: 'PUT',
       body: options.body
-    }) as T
+    })
   }
 
   // 封装 DELETE 方法
-  async delete<T = Response>(resource: string, options: Omit<RequestOptions, 'method'> = {}) {
-    return this.request(resource, { ...options, method: 'DELETE' }) as T
+  async delete<T = Response>(
+    resource: string,
+    options: Omit<RequestOptions, 'method'> = {}
+  ): Promise<T> {
+    return this.request<T>(resource, { ...options, method: 'DELETE' })
   }
 }
 
